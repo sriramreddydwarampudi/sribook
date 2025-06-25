@@ -1,0 +1,30 @@
+name: Build Crowbook
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Crowbook
+        run: cargo install crowbook
+
+      - name: Generate book
+        run: |
+          mkdir output
+          crowbook book.md -o output/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ebook-outputs
+          path: output/
