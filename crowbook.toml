@@ -1,0 +1,12 @@
+title = "My Book"
+author = "Sri Ram"
+language = "en"
+
+[output.epub]
+path = "output/mybook.epub"
+
+[output.pdf]
+path = "output/mybook.pdf"
+
+[output.html]
+path = "output/mybook.html"
