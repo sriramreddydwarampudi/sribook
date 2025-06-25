@@ -1,16 +1,21 @@
-name: Build Crowbook Book
+name: Build Single Book from All Markdown
 
 on:
   push:
     branches: [main]
 
 jobs:
-  build:
+  build-book:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Setup Git user
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -18,20 +23,26 @@ jobs:
       - name: Install Crowbook
         run: cargo install crowbook
 
-      - name: Create output directory
-        run: mkdir output
+      - name: Clean output
+        run: |
+          rm -rf output
+          mkdir output
 
-      - name: Generate EPUB
-        run: crowbook --to epub --output output/book.epub book.md
+      - name: Combine all Markdown files into one
+        run: |
+          cat *.md > book.md
 
-      - name: Generate PDF
-        run: crowbook --to pdf --output output/book.pdf book.md
+      - name: Generate EPUB, PDF, and HTML
+        run: |
+          crowbook --to epub --output output/book.epub book.md
+          crowbook --to pdf  --output output/book.pdf  book.md
+          crowbook --to html --output output/book.html book.md
 
-      - name: Generate HTML
-        run: crowbook --to html --output output/book.html book.md
-
-      - name: Upload all ebook outputs
-        uses: actions/upload-artifact@v4
-        with:
-          name: book-formats
-          path: output/
+      - name: Commit and push outputs
+        run: |
+          git pull origin main
+          git add output/
+          git commit -m "📘 Combined book from all .md files"
+          git push origin main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
