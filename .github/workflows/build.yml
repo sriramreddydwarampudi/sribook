@@ -1,4 +1,4 @@
-name: Build Crowbook
+name: Build Crowbook Book
 
 on:
   push:
@@ -10,7 +10,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -18,13 +18,20 @@ jobs:
       - name: Install Crowbook
         run: cargo install crowbook
 
-      - name: Generate book
-        run: |
-          mkdir output
-          crowbook book.md -o output/
+      - name: Create output directory
+        run: mkdir output
 
-      - name: Upload artifacts
+      - name: Generate EPUB
+        run: crowbook --to epub --output output/book.epub book.md
+
+      - name: Generate PDF
+        run: crowbook --to pdf --output output/book.pdf book.md
+
+      - name: Generate HTML
+        run: crowbook --to html --output output/book.html book.md
+
+      - name: Upload all ebook outputs
         uses: actions/upload-artifact@v4
         with:
-          name: ebook-outputs
+          name: book-formats
           path: output/
