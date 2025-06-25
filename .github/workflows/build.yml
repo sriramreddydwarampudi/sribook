@@ -1,21 +1,16 @@
-name: Build Single Book from All Markdown
+name: Build Book and Upload Artifacts
 
 on:
   push:
     branches: [main]
 
 jobs:
-  build-book:
+  build:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Setup Git user
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -23,13 +18,14 @@ jobs:
       - name: Install Crowbook
         run: cargo install crowbook
 
-      - name: Clean output
+      - name: Prepare output folder
         run: |
           rm -rf output
           mkdir output
 
-      - name: Combine all Markdown files into one
+      - name: Combine all Markdown into book.md (in order)
         run: |
+          # You can change the order here if needed
           cat *.md > book.md
 
       - name: Generate EPUB, PDF, and HTML
@@ -38,11 +34,8 @@ jobs:
           crowbook --to pdf  --output output/book.pdf  book.md
           crowbook --to html --output output/book.html book.md
 
-      - name: Commit and push outputs
-        run: |
-          git pull origin main
-          git add book.md output/
-          git commit -m "📘 Combined book from all .md files"
-          git push origin main
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload output files as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sribook-outputs
+          path: output/
