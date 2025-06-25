@@ -41,7 +41,7 @@ jobs:
       - name: Commit and push outputs
         run: |
           git pull origin main
-          git add output/
+          git add book.md output/
           git commit -m "📘 Combined book from all .md files"
           git push origin main
         env:
