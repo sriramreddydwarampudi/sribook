@@ -18,44 +18,59 @@ jobs:
           source $HOME/.cargo/env
           cargo install crowbook --version 0.16.0
 
+      - name: Check Crowbook installation
+        run: |
+          source $HOME/.cargo/env
+          crowbook --version
+
       - name: Combine all Markdown files
         run: |
           echo "# My Book" > book.md
           echo "" >> book.md
-          
+
           for file in $(find . -name "*.md" ! -name "README.md" ! -name "book.md" | sort); do
             echo "Adding $file"
             sed -e '1s/^\xEF\xBB\xBF//' -e '/^---/,/^---/d' "$file" >> book.md
             echo -e "\n" >> book.md
           done
-          
+
           if [ $(wc -l < book.md) -lt 3 ]; then
             echo "# Empty Book" > book.md
             echo "No valid Markdown content found" >> book.md
           fi
 
-      - name: Generate outputs
-    
+      - name: Show generated book.md
+        run: cat book.md
+
+      - name: Generate outputs (HTML, EPUB, PDF)
         run: |
+          set -x
+          source $HOME/.cargo/env
           mkdir -p output
 
+          # HTML
           crowbook book.md --set \
-          metadata.title "My Generated Book" \
-          metadata.author "GitHub Actions" \
-          metadata.lang "en" \
-          --to epub --output output/book.epub
+            metadata.title "My Generated Book" \
+            metadata.author "GitHub Actions" \
+            metadata.lang "en" \
+            --to html --output output/book.html \
+            2>&1 | tee crowbook-html.log
 
+          # EPUB
           crowbook book.md --set \
-          metadata.title "My Generated Book" \
-          metadata.author "GitHub Actions" \
-          metadata.lang "en" \
-          --to pdf --output output/book.pdf
+            metadata.title "My Generated Book" \
+            metadata.author "GitHub Actions" \
+            metadata.lang "en" \
+            --to epub --output output/book.epub \
+            2>&1 | tee crowbook-epub.log
 
+          # PDF
           crowbook book.md --set \
-          metadata.title "My Generated Book" \
-          metadata.author "GitHub Actions" \
-          metadata.lang "en" \
-          --to html --output output/book.html
+            metadata.title "My Generated Book" \
+            metadata.author "GitHub Actions" \
+            metadata.lang "en" \
+            --to pdf --output output/book.pdf \
+            2>&1 | tee crowbook-pdf.log
 
           echo "Generated files:"
           ls -lh output/
@@ -67,5 +82,5 @@ jobs:
           path: |
             output/
             book.md
-            crowbook.log
+            crowbook-*.log
           retention-days: 1
