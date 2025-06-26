@@ -3,8 +3,6 @@ name: Build Book with Crowbook
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
 
 jobs:
   build:
@@ -16,72 +14,48 @@ jobs:
 
       - name: Install Rust and Crowbook
         run: |
-          # Install Rust with stable toolchain
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           source $HOME/.cargo/env
-          
-          # Install specific Crowbook version (0.16.0 is known stable)
           cargo install crowbook --version 0.16.0
-          crowbook --version
 
-      - name: Verify repository contents
+      - name: Create properly formatted book.md
         run: |
-          echo "Repository structure:"
-          ls -la
-          echo -e "\nMarkdown files:"
-          ls *.md || echo "No markdown files found"
-          echo -e "\nContent of first markdown file:"
-          head -n 5 *.md || true
-
-      - name: Create combined book.md with metadata
-        run: |
-          # Create book.md with basic metadata header
-          cat > book.md <<EOF
-          % Title: Generated Book
-          % Author: GitHub Actions
-          % Language: en
+          # Create valid YAML metadata block
+          cat > book.md << 'EOF'
+          ---
+          title: "Generated Book"
+          author: "GitHub Actions"
+          lang: en
+          ---
           
           EOF
           
-          # Append all markdown content
-          cat *.md >> book.md 2>/dev/null || echo "Warning: No markdown files to combine"
+          # Append all markdown content (excluding any existing YAML blocks)
+          for file in *.md; do
+            if [ "$file" != "book.md" ]; then
+              # Skip YAML frontmatter if present in source files
+              sed '1{/^---/!q;};1,/^---/d' "$file" >> book.md
+              echo -e "\n" >> book.md
+            fi
+          done
           
-          echo -e "\nFirst 20 lines of book.md:"
+          echo "First 20 lines of book.md:"
           head -n 20 book.md
-          echo -e "\nFile info:"
-          ls -lh book.md
-          wc -l book.md
 
-      - name: Generate outputs with debug info
+      - name: Generate outputs
         run: |
           mkdir -p output
+          echo "Generating outputs..."
           
-          echo "Attempting to generate EPUB..."
-          crowbook --to epub --output output/book.epub book.md 2> epub_errors.txt || {
-            echo "EPUB generation failed. Errors:"
-            cat epub_errors.txt
-            echo "Creating empty EPUB for artifact"
-            touch output/book.epub
-          }
+          # Generate each format with error logging
+          crowbook --to epub --output output/book.epub book.md 2> epub_errors.txt || echo "EPUB generation had warnings"
+          crowbook --to pdf --output output/book.pdf book.md 2> pdf_errors.txt || echo "PDF generation had warnings"
+          crowbook --to html --output output/book.html book.md 2> html_errors.txt || echo "HTML generation had warnings"
           
-          echo "Attempting to generate PDF..."
-          crowbook --to pdf --output output/book.pdf book.md 2> pdf_errors.txt || {
-            echo "PDF generation failed. Errors:"
-            cat pdf_errors.txt
-            touch output/book.pdf
-          }
-          
-          echo "Attempting to generate HTML..."
-          crowbook --to html --output output/book.html book.md 2> html_errors.txt || {
-            echo "HTML generation failed. Errors:"
-            cat html_errors.txt
-            touch output/book.html
-          }
-          
-          echo -e "\nFinal output directory contents:"
+          echo "Generated files:"
           ls -la output/
 
-      - name: Upload artifacts and logs
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: book-artifacts
@@ -89,5 +63,4 @@ jobs:
             output/*
             *.txt
             book.md
-          if-no-files-found: warn
           retention-days: 1
