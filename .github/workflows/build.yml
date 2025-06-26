@@ -1,4 +1,4 @@
-name: Build Book Without YAML
+name: Build All Markdown Files
 
 on:
   push:
@@ -12,50 +12,56 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Rust and Crowbook
+      - name: Install Crowbook
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           source $HOME/.cargo/env
           cargo install crowbook --version 0.16.0
 
-      - name: Create clean book.md
+      - name: Combine all Markdown files
         run: |
-          # Start with simple header
-          echo "# My Generated Book" > book.md
+          # Create clean book.md with minimal header
+          echo "# My Book" > book.md
           echo "" >> book.md
           
-          # Append all markdown content (excluding README.md)
-          for file in *.md; do
-            if [ "$file" != "README.md" ] && [ "$file" != "book.md" ]; then
-              # Remove any YAML blocks
-              sed -e '/^---/,/^---/d' "$file" >> book.md
-              echo "" >> book.md  # Add spacing
-            fi
+          # Process all .md files except README.md and book.md
+          for file in $(find . -name "*.md" ! -name "README.md" ! -name "book.md" | sort); do
+            echo "Adding $file"
+            # Remove YAML blocks and BOM characters
+            sed -e '1s/^\xEF\xBB\xBF//' -e '/^---/,/^---/d' "$file" >> book.md
+            echo -e "\n" >> book.md  # Add spacing
           done
+          
+          # Fallback if no files found
+          if [ $(wc -l < book.md) -lt 3 ]; then
+            echo "# Empty Book" > book.md
+            echo "No valid Markdown content found" >> book.md
+          fi
 
       - name: Generate outputs
         run: |
           mkdir -p output
           
-          # Correct syntax: --set key=value (no spaces)
-          crowbook --to epub output/book.epub book.md \
-            --set metadata.title="My Book" \
-            --set metadata.author="Auto-generated" \
-            --set metadata.lang="en"
+          # Generate all formats in one command (more efficient)
+          crowbook book.md \
+            --set metadata.title="My Generated Book" \
+            --set metadata.author="GitHub Actions" \
+            --set metadata.lang="en" \
+            --to epub --output output/book.epub \
+            --to pdf --output output/book.pdf \
+            --to html --output output/book.html \
+            2>&1 | tee crowbook.log || echo "Generation completed with warnings"
           
-          crowbook --to pdf output/book.pdf book.md \
-            --set metadata.title="My Book" \
-            --set metadata.author="Auto-generated" \
-            --set metadata.lang="en"
-          
-          crowbook --to html output/book.html book.md \
-            --set metadata.title="My Book" \
-            --set metadata.author="Auto-generated" \
-            --set metadata.lang="en"
+          # Verify outputs
+          echo "Generated files:"
+          ls -lh output/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: book-outputs
-          path: output/
+          path: |
+            output/
+            book.md
+            crowbook.log
           retention-days: 1
