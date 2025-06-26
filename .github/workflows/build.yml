@@ -14,45 +14,29 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # Install Rust
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           source $HOME/.cargo/env
-          
-          # Install Crowbook
           cargo install crowbook --version 0.16.0
-          
-          # Install yq for YAML processing
-          sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Create book.md with validated metadata
+      - name: Create validated book.md
         run: |
-          # Create minimal valid YAML header
-          cat > book.md << 'EOF'
-          ---
-          title: "Generated Book"
-          author: "GitHub Actions"
-          lang: "en"
-          ---
+          # Create clean YAML header with UNIX line endings
+          printf "---\ntitle: \"Generated Book\"\nauthor: \"GitHub Actions\"\nlang: \"en\"\n---\n\n" > book.md
           
-          EOF
-          
-          # Append content from other markdown files (skipping existing YAML blocks)
+          # Append content with proper formatting
           for file in *.md; do
             if [ "$file" != "book.md" ]; then
-              # Skip lines between --- markers (existing YAML blocks)
-              awk 'BEGIN {y=0} /^---/ {y++; next} y!=1' "$file" >> book.md
-              echo -e "\n" >> book.md
+              # Remove any existing YAML blocks and add content
+              sed -e '/^---$/,/^---$/d' "$file" >> book.md
+              echo "" >> book.md  # Ensure proper spacing
             fi
           done
           
-          # Simple YAML validation by extracting the block
-          echo "Extracted YAML metadata:"
-          awk '/^---/{flag=!flag; next} flag' book.md
-          
-          # Verify the YAML block ends properly
-          if [ $(grep -c '^---$' book.md) -ne 2 ]; then
-            echo "ERROR: YAML block must be enclosed by --- markers"
-            echo "Current file start:"
+          # Verify YAML block structure
+          echo "Verifying YAML structure..."
+          if ! grep -q "^---$" book.md || [ $(grep -c "^---$" book.md) -ne 2 ]; then
+            echo "ERROR: Invalid YAML block structure"
+            echo "First 10 lines:"
             head -n 10 book.md
             exit 1
           fi
@@ -60,16 +44,20 @@ jobs:
       - name: Generate outputs
         run: |
           mkdir -p output
-          echo "Generating outputs..."
           
-          # Generate each format with error logging
-          crowbook --to epub --output output/book.epub book.md 2> epub_errors.txt || echo "EPUB generation completed with warnings"
-          crowbook --to pdf --output output/book.pdf book.md 2> pdf_errors.txt || echo "PDF generation completed with warnings"
-          crowbook --to html --output output/book.html book.md 2> html_errors.txt || echo "HTML generation completed with warnings"
+          # First verify Crowbook can parse the file
+          echo "Validating book.md..."
+          if ! crowbook --check book.md; then
+            echo "ERROR: Crowbook validation failed"
+            echo "Showing problematic lines:"
+            crowbook --check book.md 2>&1 | grep -A 5 -B 5 "error"
+            exit 1
+          fi
           
-          # Basic output verification
-          echo "Generated files:"
-          ls -la output/
+          # Generate outputs
+          crowbook --to epub --output output/book.epub book.md
+          crowbook --to pdf --output output/book.pdf book.md
+          crowbook --to html --output output/book.html book.md
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -77,6 +65,5 @@ jobs:
           name: book-artifacts
           path: |
             output/*
-            *.txt
             book.md
           retention-days: 1
