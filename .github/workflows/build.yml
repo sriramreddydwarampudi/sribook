@@ -41,16 +41,15 @@ jobs:
       - name: Generate outputs
         run: |
           mkdir -p output
-          
-          # Generate all formats in one command (more efficient)
+
+
           crowbook book.md \
-            --set metadata.title "My Generated Book" \
-            --set metadata.author "GitHub Actions" \
-            --set metadata.lang "en" \
-            --to epub --output output/book.epub \
-            --to pdf --output output/book.pdf \
-            --to html --output output/book.html \
-            2>&1 | tee crowbook.log || echo "Generation completed with warnings"
+          
+           --set metadata.title "My Book" metadata.author "GitHub Actions" metadata.lang "en" \
+           --to epub --output output/book.epub \
+           --to pdf --output output/book.pdf \
+           --to html --output output/book.html \
+           2>&1 | tee crowbook.log || echo "Generation completed with warnings"
           
           # Verify outputs
           echo "Generated files:"
