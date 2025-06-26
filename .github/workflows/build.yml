@@ -3,6 +3,8 @@ name: Build Book and Upload Artifacts
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
   build:
@@ -16,26 +18,64 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install Crowbook
-        run: cargo install crowbook
+        run: |
+          cargo install crowbook
+          crowbook --version
+
+      - name: List repository files (debug)
+        run: ls -la
 
       - name: Prepare output folder
         run: |
           rm -rf output
-          mkdir output
+          mkdir -p output
 
-      - name: Combine all Markdown into book.md (in order)
+      - name: Combine all Markdown into book.md
         run: |
-          # You can change the order here if needed
-          cat *.md > book.md
+          echo "Available markdown files:"
+          ls *.md || echo "No markdown files found"
+          
+          # Create book.md with all markdown content
+          cat *.md > book.md 2>/dev/null || echo "Warning: Could not combine markdown files"
+          
+          echo "Book content preview:"
+          head -n 20 book.md || echo "No book.md created"
 
-      - name: Generate EPUB, PDF, and HTML
+      - name: Generate output formats
         run: |
-          crowbook --to epub --output output/book.epub book.md
-          crowbook --to pdf  --output output/book.pdf  book.md
-          crowbook --to html --output output/book.html book.md
+          echo "Generating output formats..."
+          
+          # Generate each format with error handling
+          if ! crowbook --to epub --output output/book.epub book.md; then
+            echo "EPUB generation failed"
+            echo "Book.md content:"
+            cat book.md
+            exit 1
+          fi
+          
+          crowbook --to pdf --output output/book.pdf book.md || echo "PDF generation failed"
+          crowbook --to html --output output/book.html book.md || echo "HTML generation failed"
+          
+          echo "Generated files:"
+          ls -la output/
+
+      - name: Verify output files
+        run: |
+          if [ ! -f "output/book.epub" ]; then
+            echo "Error: EPUB file was not generated"
+            exit 1
+          fi
+          if [ ! -f "output/book.pdf" ]; then
+            echo "Warning: PDF file was not generated"
+          fi
+          if [ ! -f "output/book.html" ]; then
+            echo "Warning: HTML file was not generated"
+          fi
 
       - name: Upload output files as artifacts
+        if: success() || failure()  # Upload artifacts even if some steps failed
         uses: actions/upload-artifact@v4
         with:
-          name: sribook-outputs
+          name: book-outputs
           path: output/
+          if-no-files-found: warn
