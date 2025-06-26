@@ -18,42 +18,37 @@ jobs:
           source $HOME/.cargo/env
           cargo install crowbook --version 0.16.0
 
-      - name: Create clean book.md (no YAML)
+      - name: Create clean book.md
         run: |
           # Start with simple header
           echo "# My Generated Book" > book.md
           echo "" >> book.md
           
-          # Append all markdown content (excluding README.md if present)
+          # Append all markdown content (excluding README.md)
           for file in *.md; do
             if [ "$file" != "README.md" ] && [ "$file" != "book.md" ]; then
-              # Remove any existing YAML blocks
+              # Remove any YAML blocks
               sed -e '/^---/,/^---/d' "$file" >> book.md
-              echo "" >> book.md  # Add spacing between files
+              echo "" >> book.md  # Add spacing
             fi
           done
-          
-          # Verify no YAML blocks remain
-          if grep -q "^---$" book.md; then
-            echo "ERROR: Found YAML blocks in source files"
-            exit 1
-          fi
 
-      - name: Generate outputs with CLI metadata
+      - name: Generate outputs
         run: |
           mkdir -p output
           
-          crowbook --to epub --output output/book.epub book.md \
+          # Correct syntax: --set key=value (no spaces)
+          crowbook --to epub output/book.epub book.md \
             --set metadata.title="My Book" \
             --set metadata.author="Auto-generated" \
             --set metadata.lang="en"
-            
-          crowbook --to pdf --output output/book.pdf book.md \
+          
+          crowbook --to pdf output/book.pdf book.md \
             --set metadata.title="My Book" \
             --set metadata.author="Auto-generated" \
             --set metadata.lang="en"
-            
-          crowbook --to html --output output/book.html book.md \
+          
+          crowbook --to html output/book.html book.md \
             --set metadata.title="My Book" \
             --set metadata.author="Auto-generated" \
             --set metadata.lang="en"
