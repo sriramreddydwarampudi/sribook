@@ -1,4 +1,4 @@
-name: Build Book and Upload Artifacts
+name: Build Book with Crowbook
 
 on:
   push:
@@ -16,60 +16,78 @@ jobs:
 
       - name: Install Rust and Crowbook
         run: |
-          # Install Rust
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          # Install Rust with stable toolchain
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
           source $HOME/.cargo/env
           
-          # Install Crowbook with version check
-          cargo install crowbook
+          # Install specific Crowbook version (0.16.0 is known stable)
+          cargo install crowbook --version 0.16.0
           crowbook --version
 
-      - name: Debug - Show repository structure
+      - name: Verify repository contents
         run: |
-          echo "Repository contents:"
+          echo "Repository structure:"
           ls -la
-          echo "Markdown files:"
+          echo -e "\nMarkdown files:"
           ls *.md || echo "No markdown files found"
+          echo -e "\nContent of first markdown file:"
+          head -n 5 *.md || true
 
-      - name: Create combined book.md
+      - name: Create combined book.md with metadata
         run: |
-          # Create combined markdown file with header
-          echo "# Generated Book\n" > book.md
+          # Create book.md with basic metadata header
+          cat > book.md <<EOF
+          % Title: Generated Book
+          % Author: GitHub Actions
+          % Language: en
+          
+          EOF
+          
+          # Append all markdown content
           cat *.md >> book.md 2>/dev/null || echo "Warning: No markdown files to combine"
           
-          echo "First 10 lines of book.md:"
-          head -n 10 book.md
-          echo "File size:"
+          echo -e "\nFirst 20 lines of book.md:"
+          head -n 20 book.md
+          echo -e "\nFile info:"
           ls -lh book.md
+          wc -l book.md
 
-      - name: Generate outputs
+      - name: Generate outputs with debug info
         run: |
           mkdir -p output
           
-          echo "Generating EPUB..."
-          if ! crowbook --to epub --output output/book.epub book.md; then
-            echo "EPUB generation failed. Showing errors:"
-            crowbook --to epub --output output/book.epub book.md 2>&1 | grep -i error || true
-            echo "Last 20 lines of book.md:"
-            tail -n 20 book.md
-          else
-            echo "EPUB generated successfully"
-          fi
+          echo "Attempting to generate EPUB..."
+          crowbook --to epub --output output/book.epub book.md 2> epub_errors.txt || {
+            echo "EPUB generation failed. Errors:"
+            cat epub_errors.txt
+            echo "Creating empty EPUB for artifact"
+            touch output/book.epub
+          }
           
-          echo "Generating PDF..."
-          crowbook --to pdf --output output/book.pdf book.md || echo "PDF generation failed"
+          echo "Attempting to generate PDF..."
+          crowbook --to pdf --output output/book.pdf book.md 2> pdf_errors.txt || {
+            echo "PDF generation failed. Errors:"
+            cat pdf_errors.txt
+            touch output/book.pdf
+          }
           
-          echo "Generating HTML..."
-          crowbook --to html --output output/book.html book.md || echo "HTML generation failed"
+          echo "Attempting to generate HTML..."
+          crowbook --to html --output output/book.html book.md 2> html_errors.txt || {
+            echo "HTML generation failed. Errors:"
+            cat html_errors.txt
+            touch output/book.html
+          }
           
-          echo "Generated files:"
+          echo -e "\nFinal output directory contents:"
           ls -la output/
 
-      - name: Upload artifacts
+      - name: Upload artifacts and logs
         uses: actions/upload-artifact@v4
         with:
-          name: book-outputs
+          name: book-artifacts
           path: |
             output/*
+            *.txt
             book.md
           if-no-files-found: warn
+          retention-days: 1
