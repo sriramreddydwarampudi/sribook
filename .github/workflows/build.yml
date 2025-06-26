@@ -18,42 +18,50 @@ jobs:
           source $HOME/.cargo/env
           cargo install crowbook --version 0.16.0
 
-      - name: Create properly formatted book.md
+      - name: Create validated book.md
         run: |
-          # Create valid YAML metadata block
+          # Create minimal valid YAML header
           cat > book.md << 'EOF'
           ---
-          title: "Generated Book"
-          author: "GitHub Actions"
-          lang: en
+          title: "My Book"
+          author: "Author Name"
+          lang: "en"
+          date: "2023-01-01"
           ---
-          
+
           EOF
-          
-          # Append all markdown content (excluding any existing YAML blocks)
+
+          # Append content from other markdown files
           for file in *.md; do
             if [ "$file" != "book.md" ]; then
-              # Skip YAML frontmatter if present in source files
-              sed '1{/^---/!q;};1,/^---/d' "$file" >> book.md
+              # Skip any existing YAML blocks
+              awk 'BEGIN {y=0} /^---/ {y++; next} y>=2 || y==0' "$file" >> book.md
               echo -e "\n" >> book.md
             fi
           done
-          
-          echo "First 20 lines of book.md:"
-          head -n 20 book.md
+
+          # Validate YAML structure
+          echo "Validating YAML header..."
+          awk '/^---/{flag=1; next} /^---/{flag=0} flag' book.md | yamllint - || {
+            echo "YAML validation failed! Showing header:"
+            head -n 10 book.md
+            exit 1
+          }
 
       - name: Generate outputs
         run: |
           mkdir -p output
           echo "Generating outputs..."
           
-          # Generate each format with error logging
-          crowbook --to epub --output output/book.epub book.md 2> epub_errors.txt || echo "EPUB generation had warnings"
-          crowbook --to pdf --output output/book.pdf book.md 2> pdf_errors.txt || echo "PDF generation had warnings"
-          crowbook --to html --output output/book.html book.md 2> html_errors.txt || echo "HTML generation had warnings"
+          # Generate with verbose logging
+          crowbook -v --to epub --output output/book.epub book.md 2>&1 | tee epub.log
+          crowbook -v --to pdf --output output/book.pdf book.md 2>&1 | tee pdf.log
+          crowbook -v --to html --output output/book.html book.md 2>&1 | tee html.log
           
-          echo "Generated files:"
-          ls -la output/
+          # Verify outputs were created
+          [ -f output/book.epub ] || echo "Warning: EPUB not generated"
+          [ -f output/book.pdf ] || echo "Warning: PDF not generated"
+          [ -f output/book.html ] || echo "Warning: HTML not generated"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -61,6 +69,6 @@ jobs:
           name: book-artifacts
           path: |
             output/*
-            *.txt
+            *.log
             book.md
           retention-days: 1
