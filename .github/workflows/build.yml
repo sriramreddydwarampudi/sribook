@@ -18,23 +18,24 @@ jobs:
           source $HOME/.cargo/env
           cargo install crowbook --version 0.16.0
 
-      - name: Check Crowbook install
-        run: |
-          source $HOME/.cargo/env
-          crowbook --version
-
       - name: Combine all Markdown files into book.md
         run: |
           echo "# My Book" > book.md
           echo "" >> book.md
-          
+
           for file in $(find . -name "*.md" ! -name "README.md" ! -name "book.md" | sort); do
             echo "Adding $file"
-            # Strip BOM and remove any YAML frontmatter
-            sed -e '1s/^\xEF\xBB\xBF//' -e '/^---/,/^---/d' "$file" >> book.md
+            awk '
+              BEGIN { in_yaml = 0 }
+              /^---/ {
+                if (in_yaml == 0) { in_yaml = 1; next }
+                else { in_yaml = 0; next }
+              }
+              in_yaml == 0 { print }
+            ' "$file" >> book.md
             echo -e "\n" >> book.md
           done
-          
+
           if [ $(wc -l < book.md) -lt 3 ]; then
             echo "# Empty Book" > book.md
             echo "No valid Markdown content found" >> book.md
