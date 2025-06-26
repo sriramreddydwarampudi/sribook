@@ -18,28 +18,29 @@ jobs:
           source $HOME/.cargo/env
           cargo install crowbook --version 0.16.0
 
-      - name: Check Crowbook installation
+      - name: Check Crowbook install
         run: |
           source $HOME/.cargo/env
           crowbook --version
 
-      - name: Combine all Markdown files
+      - name: Combine all Markdown files into book.md
         run: |
           echo "# My Book" > book.md
           echo "" >> book.md
-
+          
           for file in $(find . -name "*.md" ! -name "README.md" ! -name "book.md" | sort); do
             echo "Adding $file"
+            # Strip BOM and remove any YAML frontmatter
             sed -e '1s/^\xEF\xBB\xBF//' -e '/^---/,/^---/d' "$file" >> book.md
             echo -e "\n" >> book.md
           done
-
+          
           if [ $(wc -l < book.md) -lt 3 ]; then
             echo "# Empty Book" > book.md
             echo "No valid Markdown content found" >> book.md
           fi
 
-      - name: Show generated book.md
+      - name: Show book.md contents (debug)
         run: cat book.md
 
       - name: Generate outputs (HTML, EPUB, PDF)
@@ -48,7 +49,6 @@ jobs:
           source $HOME/.cargo/env
           mkdir -p output
 
-          # HTML
           crowbook book.md --set \
             metadata.title "My Generated Book" \
             metadata.author "GitHub Actions" \
@@ -56,7 +56,6 @@ jobs:
             --to html --output output/book.html \
             2>&1 | tee crowbook-html.log
 
-          # EPUB
           crowbook book.md --set \
             metadata.title "My Generated Book" \
             metadata.author "GitHub Actions" \
@@ -64,7 +63,6 @@ jobs:
             --to epub --output output/book.epub \
             2>&1 | tee crowbook-epub.log
 
-          # PDF
           crowbook book.md --set \
             metadata.title "My Generated Book" \
             metadata.author "GitHub Actions" \
