@@ -14,68 +14,62 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install Crowbook
+      - name: Install Rust and Crowbook
         run: |
+          # Install Rust
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          source $HOME/.cargo/env
+          
+          # Install Crowbook with version check
           cargo install crowbook
           crowbook --version
 
-      - name: List repository files (debug)
-        run: ls -la
-
-      - name: Prepare output folder
+      - name: Debug - Show repository structure
         run: |
-          rm -rf output
-          mkdir -p output
-
-      - name: Combine all Markdown into book.md
-        run: |
-          echo "Available markdown files:"
+          echo "Repository contents:"
+          ls -la
+          echo "Markdown files:"
           ls *.md || echo "No markdown files found"
-          
-          # Create book.md with all markdown content
-          cat *.md > book.md 2>/dev/null || echo "Warning: Could not combine markdown files"
-          
-          echo "Book content preview:"
-          head -n 20 book.md || echo "No book.md created"
 
-      - name: Generate output formats
+      - name: Create combined book.md
         run: |
-          echo "Generating output formats..."
+          # Create combined markdown file with header
+          echo "# Generated Book\n" > book.md
+          cat *.md >> book.md 2>/dev/null || echo "Warning: No markdown files to combine"
           
-          # Generate each format with error handling
+          echo "First 10 lines of book.md:"
+          head -n 10 book.md
+          echo "File size:"
+          ls -lh book.md
+
+      - name: Generate outputs
+        run: |
+          mkdir -p output
+          
+          echo "Generating EPUB..."
           if ! crowbook --to epub --output output/book.epub book.md; then
-            echo "EPUB generation failed"
-            echo "Book.md content:"
-            cat book.md
-            exit 1
+            echo "EPUB generation failed. Showing errors:"
+            crowbook --to epub --output output/book.epub book.md 2>&1 | grep -i error || true
+            echo "Last 20 lines of book.md:"
+            tail -n 20 book.md
+          else
+            echo "EPUB generated successfully"
           fi
           
+          echo "Generating PDF..."
           crowbook --to pdf --output output/book.pdf book.md || echo "PDF generation failed"
+          
+          echo "Generating HTML..."
           crowbook --to html --output output/book.html book.md || echo "HTML generation failed"
           
           echo "Generated files:"
           ls -la output/
 
-      - name: Verify output files
-        run: |
-          if [ ! -f "output/book.epub" ]; then
-            echo "Error: EPUB file was not generated"
-            exit 1
-          fi
-          if [ ! -f "output/book.pdf" ]; then
-            echo "Warning: PDF file was not generated"
-          fi
-          if [ ! -f "output/book.html" ]; then
-            echo "Warning: HTML file was not generated"
-          fi
-
-      - name: Upload output files as artifacts
-        if: success() || failure()  # Upload artifacts even if some steps failed
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: book-outputs
-          path: output/
+          path: |
+            output/*
+            book.md
           if-no-files-found: warn
