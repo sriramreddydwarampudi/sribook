@@ -1,4 +1,4 @@
-name: Build Book with Crowbook
+name: Build Book Without YAML
 
 on:
   push:
@@ -12,58 +12,55 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Install Rust and Crowbook
         run: |
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           source $HOME/.cargo/env
           cargo install crowbook --version 0.16.0
 
-      - name: Create validated book.md
+      - name: Create clean book.md (no YAML)
         run: |
-          # Create clean YAML header with UNIX line endings
-          printf "---\ntitle: \"Generated Book\"\nauthor: \"GitHub Actions\"\nlang: \"en\"\n---\n\n" > book.md
+          # Start with simple header
+          echo "# My Generated Book" > book.md
+          echo "" >> book.md
           
-          # Append content with proper formatting
+          # Append all markdown content (excluding README.md if present)
           for file in *.md; do
-            if [ "$file" != "book.md" ]; then
-              # Remove any existing YAML blocks and add content
-              sed -e '/^---$/,/^---$/d' "$file" >> book.md
-              echo "" >> book.md  # Ensure proper spacing
+            if [ "$file" != "README.md" ] && [ "$file" != "book.md" ]; then
+              # Remove any existing YAML blocks
+              sed -e '/^---/,/^---/d' "$file" >> book.md
+              echo "" >> book.md  # Add spacing between files
             fi
           done
           
-          # Verify YAML block structure
-          echo "Verifying YAML structure..."
-          if ! grep -q "^---$" book.md || [ $(grep -c "^---$" book.md) -ne 2 ]; then
-            echo "ERROR: Invalid YAML block structure"
-            echo "First 10 lines:"
-            head -n 10 book.md
+          # Verify no YAML blocks remain
+          if grep -q "^---$" book.md; then
+            echo "ERROR: Found YAML blocks in source files"
             exit 1
           fi
 
-      - name: Generate outputs
+      - name: Generate outputs with CLI metadata
         run: |
           mkdir -p output
           
-          # First verify Crowbook can parse the file
-          echo "Validating book.md..."
-          if ! crowbook --check book.md; then
-            echo "ERROR: Crowbook validation failed"
-            echo "Showing problematic lines:"
-            crowbook --check book.md 2>&1 | grep -A 5 -B 5 "error"
-            exit 1
-          fi
-          
-          # Generate outputs
-          crowbook --to epub --output output/book.epub book.md
-          crowbook --to pdf --output output/book.pdf book.md
-          crowbook --to html --output output/book.html book.md
+          crowbook --to epub --output output/book.epub book.md \
+            --set metadata.title="My Book" \
+            --set metadata.author="Auto-generated" \
+            --set metadata.lang="en"
+            
+          crowbook --to pdf --output output/book.pdf book.md \
+            --set metadata.title="My Book" \
+            --set metadata.author="Auto-generated" \
+            --set metadata.lang="en"
+            
+          crowbook --to html --output output/book.html book.md \
+            --set metadata.title="My Book" \
+            --set metadata.author="Auto-generated" \
+            --set metadata.lang="en"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: book-artifacts
-          path: |
-            output/*
-            book.md
+          name: book-outputs
+          path: output/
           retention-days: 1
