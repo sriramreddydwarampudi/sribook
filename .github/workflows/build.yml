@@ -44,9 +44,9 @@ jobs:
           
           # Generate all formats in one command (more efficient)
           crowbook book.md \
-            --set metadata.title="My Generated Book" \
-            --set metadata.author="GitHub Actions" \
-            --set metadata.lang="en" \
+            --set metadata.title "My Generated Book" \
+            --set metadata.author "GitHub Actions" \
+            --set metadata.lang "en" \
             --to epub --output output/book.epub \
             --to pdf --output output/book.pdf \
             --to html --output output/book.html \
