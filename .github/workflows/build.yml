@@ -20,19 +20,15 @@ jobs:
 
       - name: Combine all Markdown files
         run: |
-          # Create clean book.md with minimal header
           echo "# My Book" > book.md
           echo "" >> book.md
           
-          # Process all .md files except README.md and book.md
           for file in $(find . -name "*.md" ! -name "README.md" ! -name "book.md" | sort); do
             echo "Adding $file"
-            # Remove YAML blocks and BOM characters
             sed -e '1s/^\xEF\xBB\xBF//' -e '/^---/,/^---/d' "$file" >> book.md
-            echo -e "\n" >> book.md  # Add spacing
+            echo -e "\n" >> book.md
           done
           
-          # Fallback if no files found
           if [ $(wc -l < book.md) -lt 3 ]; then
             echo "# Empty Book" > book.md
             echo "No valid Markdown content found" >> book.md
@@ -42,16 +38,15 @@ jobs:
         run: |
           mkdir -p output
 
+          crowbook book.md --set \
+            metadata.title "My Generated Book" \
+            metadata.author "GitHub Actions" \
+            metadata.lang "en" \
+            --to epub --output output/book.epub \
+            --to pdf --output output/book.pdf \
+            --to html --output output/book.html \
+            2>&1 | tee crowbook.log || echo "Generation completed with warnings"
 
-          crowbook book.md \
-          
-           --set metadata.title "My Book" metadata.author "GitHub Actions" metadata.lang "en" \
-           --to epub --output output/book.epub \
-           --to pdf --output output/book.pdf \
-           --to html --output output/book.html \
-           2>&1 | tee crowbook.log || echo "Generation completed with warnings"
-          
-          # Verify outputs
           echo "Generated files:"
           ls -lh output/
 
