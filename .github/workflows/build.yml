@@ -35,17 +35,27 @@ jobs:
           fi
 
       - name: Generate outputs
+    
         run: |
           mkdir -p output
 
           crowbook book.md --set \
-            metadata.title "My Generated Book" \
-            metadata.author "GitHub Actions" \
-            metadata.lang "en" \
-            --to epub --output output/book.epub \
-            --to pdf --output output/book.pdf \
-            --to html --output output/book.html \
-            2>&1 | tee crowbook.log || echo "Generation completed with warnings"
+          metadata.title "My Generated Book" \
+          metadata.author "GitHub Actions" \
+          metadata.lang "en" \
+          --to epub --output output/book.epub
+
+          crowbook book.md --set \
+          metadata.title "My Generated Book" \
+          metadata.author "GitHub Actions" \
+          metadata.lang "en" \
+          --to pdf --output output/book.pdf
+
+          crowbook book.md --set \
+          metadata.title "My Generated Book" \
+          metadata.author "GitHub Actions" \
+          metadata.lang "en" \
+          --to html --output output/book.html
 
           echo "Generated files:"
           ls -lh output/
